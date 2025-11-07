@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FE タイピング演習 - QUEST MODE</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* デフォルトフォントはInter、タイトルはPress Start 2P */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1f2937 0%, #0f172a 100%); /* ダークなグラデーション背景 */
+            background-size: cover;
+            background-attachment: fixed;
+            color: #e2e8f0; /* 全体的な文字色を明るく */
+        }
+
+        /* ゲームのタイトル用フォント */
+        .game-title-font {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        /* メインコンテナのカスタムスタイル */
+        #app {
+            background: rgba(30, 41, 59, 0.9); /* 半透明のダークブルー */
+            border: 2px solid #4a5568; /* 暗めのボーダー */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); /* 強めの影 */
+        }
+
+        /* スコア・タイマーパネルのスタイル */
+        .game-panel {
+            background: #1a202c; /* ダークな背景 */
+            border: 1px solid #4a5568;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4);
+        }
+
+        /* 問題表示エリアのスタイル */
+        .question-display-area {
+            background: #2d3748; /* やや明るめのダークブルー */
+            border: 2px solid #4a90e2; /* 青い発光ボーダー */
+            box-shadow: 0 0 15px rgba(74, 144, 226, 0.5); /* 発光効果 */
+        }
+
+        /* 選択肢/ヒントエリアのスタイル */
+        .options-hint-area {
+            background: #1a202c;
+            border: 1px solid #4a5568;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.3);
+            color: #a0aec0; /* 薄いグレーの文字 */
+        }
+
+        /* 入力フィールドのスタイル */
+        #answer-input {
+            background: #1a202c;
+            border: 2px solid #63b3ed; /* 明るい青のボーダー */
+            color: #e2e8f0;
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        #answer-input:focus {
+            border-color: #4a90e2; /* フォーカス時の色 */
+            box-shadow: 0 0 10px rgba(74, 144, 226, 0.7); /* フォーカス時の発光 */
+            outline: none; /* デフォルトのアウトラインを消す */
+        }
+
+        /* ボタンのスタイル */
+        .game-button {
+            background: linear-gradient(180deg, #4299e1 0%, #2b6cb0 100%); /* グラデーション */
+            border-bottom: 3px solid #1c4b7b; /* 立体感を出すための下のボーダー */
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease-in-out;
+        }
+        .game-button:hover:not(:disabled) {
+            transform: translateY(-2px); /* 少し浮き上がる */
+            box-shadow: 0 7px 20px rgba(0, 0, 0, 0.4);
+            filter: brightness(1.1); /* 少し明るく */
+        }
+        .game-button:active:not(:disabled) {
+            transform: translateY(1px); /* 押し込んだ感じ */
+            border-bottom: 1px solid #1c4b7b;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        .game-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+            filter: none;
+        }
+        
+        /* ゲームオーバー画面のスタイル */
+        .game-over-panel {
+            background: #2d3748;
+            border: 2px solid #f56565; /* 赤い警戒色 */
+            box-shadow: 0 0 20px rgba(245, 101, 101, 0.7); /* 赤い発光 */
+            color: #e2e8f0;
+        }
+
+        /* 正解/不正解時のフィードバックメッセージ */
+        .feedback-correct {
+            color: #48bb78; /* 緑 */
+            text-shadow: 0 0 8px rgba(72, 187, 120, 0.7);
+        }
+        .feedback-incorrect {
+            color: #f56565; /* 赤 */
+            text-shadow: 0 0 8px rgba(245, 101, 101, 0.7);
+        }
+
+        /* 選択肢を流れるように見せるためのCSSアニメーション (前回の継承) */
+        @keyframes flow {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .question-flow {
+            animation: flow 0.5s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <!-- メインコンテナ -->
+    <div id="app" class="rounded-2xl w-full max-w-lg p-8 space-y-6">
+
+        <h1 class="text-4xl font-extrabold text-center text-blue-400 pb-2 game-title-font">
+            FE QUEST
+        </h1>
+        <p class="text-md text-center text-blue-200 mt-0">IT知識、タイピングでGETだぜ！</p>
+
+
+        <!-- スコアとタイマーの表示エリア (ゲーム要素) -->
+        <!-- ゲームプレイ中のみ表示 -->
+        <div id="score-timer-area" class="flex justify-between text-xl font-mono hidden">
+            <div class="game-panel text-blue-200 p-3 rounded-lg flex-1 mr-2 text-center">
+                SCORE: <span id="score">0</span>
+            </div>
+            <div class="game-panel text-red-300 p-3 rounded-lg flex-1 ml-2 text-center" id="timer-panel">
+                TIME: <span id="timer">60</span>s
+            </div>
+        </div>
+
+        <!-- ゲームプレイエリア (初期非表示) -->
+        <div id="game-area" class="space-y-5 hidden">
+            
+            <!-- 問題表示エリア -->
+            <div class="question-display-area p-5 rounded-xl text-center space-y-2">
+                <p class="text-sm font-semibold text-blue-300 mb-1">
+                    <span class="text-yellow-300 mr-2">AREA:</span> <span id="genre-display">ジャンル</span>
+                </p>
+                <p class="text-lg font-bold text-gray-100 leading-relaxed" id="question-text">
+                    [Press START to Begin Your Quest!]
+                </p>
+            </div>
+
+            <!-- 選択肢とタイピング入力エリア -->
+            <div id="quiz-content" class="space-y-4">
+                
+                <!-- 選択肢 (ここではタイピング形式のため、解答のヒントとして表示) -->
+                <div class="options-hint-area p-4 rounded-lg text-lg font-mono question-flow">
+                    <p class="text-sm text-gray-400 mb-2">HINT: Choose wisely!</p>
+                    <div id="options-area" class="text-gray-200">
+                        A: ファイアウォール / B: プロキシサーバ / C: ルータ
+                    </div>
+                </div>
+
+                <!-- タイピング入力フィールド -->
+                <input type="text" id="answer-input" placeholder="Type your answer here..." 
+                       class="w-full p-4 rounded-lg text-lg focus:outline-none transition duration-150" disabled>
+                
+                <!-- フィードバックメッセージ -->
+                <p id="feedback-message" class="text-center font-bold h-6 text-xl"></p>
+
+                <!-- 解答ボタン -->
+                <button id="submit-button" onclick="checkAnswer()" disabled
+                        class="game-button text-white font-bold py-3 px-4 rounded-lg w-full text-xl disabled:opacity-50">
+                    SUBMIT (Enter)
+                </button>
+            </div>
+        </div>
+        
+        <!-- ジャンル選択画面 -->
+        <div id="genre-selection-screen" class="space-y-6">
+            <h2 class="text-2xl font-extrabold text-center text-blue-300 border-b border-blue-500 pb-2">SELECT YOUR AREA</h2>
+            <div class="grid grid-cols-1 gap-4">
+                <button onclick="startGenreQuiz('テクノロジ系')" class="game-button py-4 text-xl hover:bg-blue-600">
+                    テクノロジ系 (Tech)
+                </button>
+                <button onclick="startGenreQuiz('マネジメント系')" class="game-button py-4 text-xl hover:bg-green-700" 
+                        style="background: linear-gradient(180deg, #48bb78 0%, #38a169 100%); border-bottom: 3px solid #276749;">
+                    マネジメント系 (Management)
+                </button>
+                <button onclick="startGenreQuiz('ストラテジ系')" class="game-button py-4 text-xl hover:bg-orange-600" 
+                        style="background: linear-gradient(180deg, #ed8936 0%, #dd6b20 100%); border-bottom: 3px solid #9c4221;">
+                    ストラテジ系 (Strategy)
+                </button>
+                <button onclick="startGenreQuiz('オールエリア')" class="game-button py-4 text-xl hover:bg-purple-600" 
+                        style="background: linear-gradient(180deg, #a78bfa 0%, #7c3aed 100%); border-bottom: 3px solid #5b21b6;">
+                    オールエリア (ALL AREA)
+                </button>
+            </div>
+        </div>
+
+        <!-- ゲームオーバー画面 -->
+        <div id="game-over-screen" class="hidden text-center p-8 game-over-panel rounded-xl space-y-4">
+            <h2 class="text-4xl font-extrabold text-red-400 game-title-font">MISSION COMPLETE!</h2>
+            <p class="text-2xl text-gray-200">FINAL SCORE: <span id="final-score" class="text-red-300 text-4xl font-bold game-title-font">0</span></p>
+            <p class="text-md text-gray-400">Your journey ends here... but a new quest awaits!</p>
+            
+            <button id="share-score-button" onclick="shareScore()"
+                    class="game-button py-3 px-4 rounded-lg w-full text-xl mt-4"
+                    style="background: linear-gradient(180deg, #00acee 0%, #0084b4 100%); border-bottom: 3px solid #005f7e;">
+                🏆 スコアをシェアする (X)
+            </button>
+
+            <button id="return-to-select-button" onclick="showGenreSelection()"
+                    class="game-button bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg w-full text-xl mt-4"
+                    style="background: linear-gradient(180deg, #48bb78 0%, #38a169 100%); border-bottom: 3px solid #276749;">
+                SELECT NEW AREA
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // Firestoreを使用するためのグローバル変数の定義 (今回はモックデータを使用)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // --- ゲーミフィケーションと問題管理の変数 ---
+        const TIME_LIMIT = 60; // 制限時間 (秒)
+        const CORRECT_SCORE = 100; // 正解時の加点
+        const WRONG_PENALTY = 50; // 不正解時の減点
+
+        let score = 0;
+        let timer = TIME_LIMIT;
+        let intervalId = null;
+        let currentQuestionIndex = 0;
+        let currentGenre = ''; // 現在プレイ中のジャンルを保持
+
+        
+        // CSV形式を模した問題データ
+        // 形式: 問題文, 正解の語句, 選択肢 (タイピング対象), ジャンル
+        const questions = [
+            // --- テクノロジ系 ---
+            ["インターネット上でクライアントからの要求に応じてサービスを提供するプログラムやコンピュータのこと。", "サーバ", "A: クライアント / B: サーバ / C: ターミナル", "テクノロジ系"],
+            ["Webページを閲覧するためのソフトウェア。データの要求と表示を行う。", "ウェブブラウザ", "A: Webサーバ / B: Webブラウザ / C: HTML", "テクノロジ系"],
+            ["プログラムの実行速度を高速化するために、メインメモリよりも高速な小型メモリ。", "キャッシュメモリ", "A: 主記憶装置 / B: キャッシュメモリ / C: レジスタ", "テクノロジ系"],
+            ["外部からの不正アクセスを防ぐために、ネットワークの境界に設置されるシステム。", "ファイアウォール", "A: ルータ / B: スイッチ / C: ファイアウォール", "テクノロジ系"],
+            ["コンピュータが行う計算処理の手順を記述したもの。", "アルゴリズム", "A: データ構造 / B: アルゴリズム / C: 構文", "テクノロジ系"],
+            ["特定の利用者だけが情報にアクセスできる状態を保つこと。", "機密性", "A: 機密性 / B: 整合性 / C: 可用性", "テクノロジ系"],
+            ["企業の機密情報を盗み出すことを目的としたサイバー攻撃。", "標的型攻撃", "A: マルウェア / B: 標的型攻撃 / C: フィッシング", "テクノロジ系"],
+            
+            // --- マネジメント系 ---
+            ["データベースにおいて、データの重複や矛盾がなく、一貫性が保たれていること。", "整合性", "A: 機密性 / B: 整合性 / C: 可用性", "マネジメント系"],
+            ["システムの企画から開発、運用、保守までの一連の流れ。", "システム開発ライフサイクル", "A: SDLC / B: プロジェクトサイクル / C: 開発プロセス", "マネジメント系"],
+            ["プロジェクトの目標を達成するために、計画、実行、監視、終結のプロセスを管理すること。", "プロジェクトマネジメント", "A: プロジェクトマネジメント / B: リスクマネジメント / C: 品質マネジメント", "マネジメント系"],
+            ["システムの機能や性能に関する要求事項を明確にする工程。", "要件定義", "A: 外部設計 / B: 内部設計 / C: 要件定義", "マネジメント系"],
+            
+            // --- ストラテジ系 ---
+            ["企業全体の情報戦略に関する意思決定を行う組織や役職。", "CIO", "A: CEO / B: COO / C: CIO", "ストラテジ系"],
+            ["企業の事業活動全体を、顧客への価値提供という視点から分析するフレームワーク。", "バリューチェーン", "A: SWOT分析 / B: バリューチェーン / C: PEST分析", "ストラテジ系"],
+            ["企業の持つ経営資源（ヒト、モノ、カネ、情報）を効率的に活用するための情報システム。", "ERP", "A: CRM / B: SCM / C: ERP", "ストラテジ系"],
+            ["自社の強みと弱み、外部環境の機会と脅威を分析し、戦略を立てる手法。", "SWOT分析", "A: バリューチェーン / B: SWOT分析 / C: PEST分析", "ストラテジ系"],
+        ];
+        
+        let availableQuestions = []; // 出題管理用の配列
+
+        // --- UI要素の取得 ---
+        const scoreElement = document.getElementById('score');
+        const timerElement = document.getElementById('timer');
+        const timerPanel = document.getElementById('timer-panel');
+        const scoreTimerArea = document.getElementById('score-timer-area');
+        const questionTextElement = document.getElementById('question-text');
+        const optionsAreaElement = document.getElementById('options-area');
+        const answerInput = document.getElementById('answer-input');
+        const submitButton = document.getElementById('submit-button');
+        const feedbackMessage = document.getElementById('feedback-message');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const gameArea = document.getElementById('game-area');
+        const finalScoreElement = document.getElementById('final-score');
+        const genreDisplay = document.getElementById('genre-display');
+        const genreSelectionScreen = document.getElementById('genre-selection-screen');
+
+        // ******************** ゲームフロー制御関数 ********************
+
+        /**
+         * ゲームを初期化し、ジャンル選択画面を表示する
+         */
+        function showGenreSelection() {
+            // 全ての画面を非表示
+            gameArea.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            scoreTimerArea.classList.add('hidden');
+            
+            // ジャンル選択画面を表示
+            genreSelectionScreen.classList.remove('hidden');
+            
+            // タイマーが動いていたら停止
+            if (intervalId) clearInterval(intervalId);
+            
+            // 入力イベントを解除
+            answerInput.removeEventListener('keypress', handleKeyPress);
+        }
+        
+        /**
+         * 選択されたジャンルの問題でゲームを開始する
+         * @param {string} selectedGenre - 選択されたジャンル名 ('テクノロジ系', 'マネジメント系', 'ストラテジ系', 'オールエリア')
+         */
+        function startGenreQuiz(selectedGenre) {
+            // 現在のジャンルを保存
+            currentGenre = selectedGenre;
+
+            // UIの状態をリセット
+            score = 0;
+            timer = TIME_LIMIT;
+            currentQuestionIndex = 0;
+            updateUI();
+            feedbackMessage.textContent = '';
+
+            // 画面表示を切り替え
+            genreSelectionScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            gameArea.classList.remove('hidden');
+            scoreTimerArea.classList.remove('hidden');
+
+            // 問題をジャンルでフィルタリングし、シャッフル
+            if (selectedGenre === 'オールエリア') {
+                // 全ての問題を使用
+                availableQuestions = [...questions].sort(() => Math.random() - 0.5);
+            } else {
+                // 選択されたジャンルのみを使用
+                availableQuestions = questions
+                    .filter(q => q[3] === selectedGenre)
+                    .sort(() => Math.random() - 0.5);
+            }
+
+
+            // フィルタリングされた問題がない場合はエラー表示
+            if (availableQuestions.length === 0) {
+                questionTextElement.textContent = `エラー: ${selectedGenre} の問題がありません。`;
+                return;
+            }
+
+            // ゲームコントロールを有効化
+            answerInput.value = '';
+            answerInput.disabled = false;
+            submitButton.disabled = false;
+            answerInput.focus();
+            
+            // タイマーを開始
+            if (intervalId) clearInterval(intervalId);
+            intervalId = setInterval(tick, 1000);
+
+            // 最初の問題を表示
+            displayNextQuestion();
+            
+            // Enterキーでの解答を可能にするイベントリスナー
+            answerInput.addEventListener('keypress', handleKeyPress);
+        }
+
+        /**
+         * 1秒ごとにタイマーを更新する
+         */
+        function tick() {
+            timer--;
+            timerElement.textContent = timer;
+
+            if (timer <= 10) {
+                // 残り時間が少ないときにタイマーパネルを赤く強調
+                timerPanel.classList.remove('text-red-300');
+                timerPanel.classList.add('bg-red-700', 'text-white', 'animate-pulse');
+            } else {
+                timerPanel.classList.remove('bg-red-700', 'text-white', 'animate-pulse');
+                timerPanel.classList.add('text-red-300');
+            }
+
+            if (timer <= 0) {
+                endGame();
+            }
+        }
+
+        /**
+         * ゲームを終了する
+         */
+        function endGame() {
+            clearInterval(intervalId);
+            answerInput.removeEventListener('keypress', handleKeyPress);
+
+            answerInput.disabled = true;
+            submitButton.disabled = true;
+
+            gameArea.classList.add('hidden');
+            scoreTimerArea.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            
+            // スコアが確定したため、ゲームオーバー画面のタイトルを変更
+            finalScoreElement.textContent = score;
+            const gameOverTitle = document.querySelector('#game-over-screen h2');
+            if (score > 0) {
+                gameOverTitle.textContent = 'MISSION COMPLETE!';
+            } else {
+                gameOverTitle.textContent = 'MISSION FAILED!';
+            }
+        }
+
+        /**
+         * 次の問題を表示する
+         */
+        function displayNextQuestion() {
+            if (currentQuestionIndex >= availableQuestions.length) {
+                // 全ての問題を出し終えた場合
+                // すべての問題を解き終わった場合も、タイマーが残っていてもゲームオーバーとする
+                timer = 0; 
+                endGame();
+                return;
+            }
+
+            const q = availableQuestions[currentQuestionIndex];
+            
+            // UIアニメーションのためにクラスをリセット
+            questionTextElement.classList.remove('question-flow');
+            optionsAreaElement.classList.remove('question-flow');
+
+            // 問題とヒントを表示
+            questionTextElement.textContent = q[0];
+            optionsAreaElement.textContent = q[2];
+            genreDisplay.textContent = q[3]; 
+            
+            // アニメーションを再適用
+            setTimeout(() => {
+                questionTextElement.classList.add('question-flow');
+                optionsAreaElement.classList.add('question-flow');
+            }, 10); // 小さなディレイでアニメーションをリトリガー
+
+            answerInput.value = '';
+            feedbackMessage.textContent = '';
+            answerInput.focus();
+        }
+
+        /**
+         * 解答をチェックする
+         */
+        function checkAnswer() {
+            if (currentQuestionIndex >= availableQuestions.length || answerInput.disabled) return;
+
+            const q = availableQuestions[currentQuestionIndex];
+            const correctAnswer = q[1];
+            const userAnswer = answerInput.value;
+
+            // ！！！正規化処理の適用！！！
+            const normalizedCorrect = normalizeJapanese(correctAnswer);
+            const normalizedUser = normalizeJapanese(userAnswer);
+
+            if (normalizedUser === normalizedCorrect) {
+                // 正解
+                score += CORRECT_SCORE;
+                feedbackMessage.textContent = '🎉 CORRECT! KNOWLEDGE GAINED!';
+                feedbackMessage.className = 'text-center font-bold text-xl feedback-correct';
+            } else {
+                // 不正解
+                score -= WRONG_PENALTY;
+                if (score < 0) score = 0; // スコアがマイナスにならないようにする
+                feedbackMessage.textContent = `❌ INCORRECT! The answer was "${correctAnswer}" (${normalizedCorrect}).`;
+                feedbackMessage.className = 'text-center font-bold text-xl feedback-incorrect';
+            }
+
+            updateUI();
+            
+            // 次の問題へ
+            currentQuestionIndex++;
+            setTimeout(displayNextQuestion, 1500); // 1.5秒後に次の問題へ
+        }
+        
+        /**
+         * スコアとタイマーの表示を更新する
+         */
+        function updateUI() {
+            scoreElement.textContent = score;
+            timerElement.textContent = timer;
+        }
+
+        /**
+         * Enterキーのイベントハンドラ
+         */
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // デフォルトのフォーム送信を防ぐ
+                checkAnswer();
+            }
+        }
+
+        /**
+         * スコアをTwitter (X) で共有する
+         */
+        function shareScore() {
+            const finalScore = score;
+            const genreText = currentGenre === 'オールエリア' ? '全範囲' : currentGenre;
+            
+            const text = `FE QUEST ${genreText}モードで、スコア${finalScore}点を獲得しました！\n\n基本情報技術者試験の知識定着に効果的なタイピングクイズに挑戦しよう！\n`;
+            
+            // 公開されたURLを使用するため、ここではプレースホルダーを使用。
+            // 実際に公開したら、[Image of X]の部分をアプリのURLに置き換えてください。
+            const url = encodeURIComponent(window.location.href); 
+            const hashtags = '基本情報技術者試験,FE,IT資格,タイピング学習';
+
+            // Twitter (X) のWeb Intent URLを生成
+            const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${url}&hashtags=${hashtags}`;
+            
+            window.open(shareUrl, '_blank');
+        }
+        
+        /**
+         * 日本語の表記揺れを吸収するための正規化処理 (研究報告書の核心機能)
+         * ... (処理内容は変更なし)
+         */
+        function normalizeJapanese(str) {
+            if (!str) return '';
+            
+            let normalized = str.trim().toLowerCase();
+            
+            normalized = normalized.replace(/[\u3041-\u3096]/g, function(match) {
+                return String.fromCharCode(match.charCodeAt(0) + 0x60);
+            });
+
+            normalized = normalized.replace(/[！-～]/g, function(match) {
+                return String.fromCharCode(match.charCodeAt(0) - 0xFEE0);
+            });
+            
+            normalized = normalized.replace(/\s/g, '');
+
+            return normalized;
+        }
+
+        // 初期UIのセットアップ - ページロード時にジャンル選択画面を表示
+        document.addEventListener('DOMContentLoaded', showGenreSelection);
+    </script>
+</body>
+</html>
