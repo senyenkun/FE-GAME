@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FE タイピング演習 - QUEST MODE</title>
     
+    <!-- Tailwind CSS の読み込み -->
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Google Fonts の読み込み (Inter, Press Start 2P) -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         /* デフォルトフォントはInter、タイトルはPress Start 2P */
@@ -141,29 +143,192 @@
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
 
-    <!-- Firebase/ゲームロジック統合スクリプト -->
+    <!-- Firebaseのインポートとロジックをモジュールとして統合 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, onSnapshot, orderBy, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Firestoreのデバッグログを有効化
         setLogLevel('Debug');
 
-        // グローバル変数の設定
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // **********************************************
+        // 🚨 ユーザーが提供したFirebase設定情報 (GitHub Pages公開用)
+        // **********************************************
+        const USER_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyByZlCvE4exyShtuzXnDl8rxQl5oWgVFQU",
+            authDomain: "fegame-219e8.firebaseapp.com",
+            projectId: "fegame-219e8",
+            storageBucket: "fegame-219e8.firebasestorage.app",
+            messagingSenderId: "202201690118",
+            appId: "1:202201690118:web:0f6e43d66e3086acb09387",
+            measurementId: "G-2BKS82EEKC"
+        };
+        // Canvas環境のグローバル変数を使用しつつ、GitHub公開時は上記設定を使用
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : USER_FIREBASE_CONFIG;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const appId = firebaseConfig.projectId || 'default-app-id'; // ProjectIdをAppIdとして使用
         
         window.firebaseApp = null;
         window.auth = null;
         window.db = null;
         window.userId = null;
-        window.isAuthReady = false;
         
         const PLAYER_NAME_KEY = 'fe_quest_player_name';
 
-        // --- ゲーミフィケーションと問題管理の変数 ---
+        // --- Firebaseサービスの初期化と認証 ---
+        async function initializeFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.projectId) {
+                    console.error("Firebase Config is incomplete or missing ProjectId. Database features will not work.");
+                    document.getElementById('user-id-display').textContent = 'DB_ERROR';
+                    return;
+                }
+                
+                window.firebaseApp = initializeApp(firebaseConfig);
+                window.auth = getAuth(window.firebaseApp);
+                window.db = getFirestore(window.firebaseApp);
+
+                onAuthStateChanged(window.auth, (user) => {
+                    if (user) {
+                        window.userId = user.uid;
+                        document.getElementById('user-id-display').textContent = window.userId.substring(0, 6) + '...';
+                        console.log("Firebase Auth Ready. User ID:", window.userId);
+                        loadHighScores(); 
+                    } else {
+                        window.userId = null;
+                        document.getElementById('user-id-display').textContent = 'N/A';
+                        console.warn("User signed out or authentication failed.");
+                    }
+                });
+
+                await setPersistence(window.auth, browserSessionPersistence);
+                if (initialAuthToken) {
+                    await signInWithCustomToken(window.auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(window.auth);
+                }
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+            }
+        }
+
+        // --- Firestore データ操作関数 ---
+        
+        /**
+         * ハイスコアをデータベースに保存する
+         */
+        function saveScore(finalScore, genre, playerName) {
+            if (!window.db || finalScore === 0 || !window.userId) {
+                console.log("Database not ready, score is 0, or user not authenticated. Skipping save.");
+                return;
+            }
+
+            try {
+                const scoreData = {
+                    score: finalScore,
+                    genre: genre,
+                    playerName: playerName || '名無しチャレンジャー', 
+                    userId: window.userId, 
+                    createdAt: serverTimestamp() 
+                };
+
+                // 公開データとして保存
+                const scoresCollection = collection(window.db, `artifacts/${appId}/public/data/highscores`);
+                addDoc(scoresCollection, scoreData)
+                    .then(() => console.log("Score saved successfully!"))
+                    .catch(error => console.error("Error saving score:", error));
+            } catch (error) {
+                console.error("Error setting up score save:", error);
+            }
+        }
+
+        /**
+         * リアルタイムでランキングを読み込み、UIを更新する
+         */
+        function loadHighScores() {
+            if (!window.db) return;
+
+            try {
+                const scoresCollection = collection(window.db, `artifacts/${appId}/public/data/highscores`);
+                // FirestoreのorderByを避けるため、全て取得してJS側でソート
+                const q = query(scoresCollection); 
+
+                onSnapshot(q, (snapshot) => {
+                    const scores = [];
+                    snapshot.forEach((doc) => {
+                        scores.push({ id: doc.id, ...doc.data() });
+                    });
+                    
+                    // スコアが高い順、同点の場合は新しいもの順にソート
+                    scores.sort((a, b) => {
+                        if (b.score !== a.score) {
+                            return b.score - a.score; 
+                        }
+                        const aTime = a.createdAt?.toMillis() || 0;
+                        const bTime = b.createdAt?.toMillis() || 0;
+                        return bTime - aTime;
+                    });
+                    
+                    renderRanking(scores.slice(0, 10)); 
+                }, error => console.error("Error in onSnapshot:", error));
+
+            } catch (error) {
+                console.error("Error loading high scores:", error);
+            }
+        }
+        
+        /**
+         * ランキングデータをUIにレンダリングする
+         */
+        function renderRanking(topScores) {
+            const rankingList = document.getElementById('ranking-list');
+            rankingList.innerHTML = '';
+
+            if (topScores.length === 0) {
+                rankingList.innerHTML = '<p class="text-center p-4 text-gray-400">まだスコアがありません。最初の挑戦者になりましょう！</p>';
+                return;
+            }
+
+            topScores.forEach((scoreData, index) => {
+                const rank = index + 1;
+                const listItem = document.createElement('div');
+                listItem.className = `rank-item flex justify-between items-center p-3 rounded-lg text-lg font-bold transition duration-150`;
+                
+                let rankBadge = `${rank}.`;
+                if (rank <= 3) {
+                    rankBadge = `⭐ ${rank}`;
+                }
+                
+                // タイムスタンプをYYYY/MM/DD HH:MM形式に変換
+                let timeStr = 'N/A';
+                if (scoreData.createdAt && scoreData.createdAt.toDate) {
+                    const date = scoreData.createdAt.toDate();
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const hour = String(date.getHours()).padStart(2, '0');
+                    const minute = String(date.getMinutes()).padStart(2, '0');
+                    timeStr = `${year}/${month}/${day} ${hour}:${minute}`;
+                }
+
+                const displayName = scoreData.playerName || scoreData.userId?.substring(0, 6) + '...' || '名無し'; 
+
+                listItem.innerHTML = `
+                    <span class="rank-badge w-1/12 text-left">${rankBadge}</span>
+                    <span class="text-blue-400 font-mono w-2/12 text-left">${scoreData.score} pts</span>
+                    <span class="text-gray-300 w-2/12 text-left text-sm">${scoreData.genre}</span>
+                    <span class="text-gray-500 w-4/12 text-center text-xs font-normal">${timeStr}</span>
+                    <span class="text-yellow-400 w-3/12 text-right text-sm truncate" title="${displayName}">${displayName}</span>
+                `;
+                rankingList.appendChild(listItem);
+            });
+        }
+        
+        // **********************************************
+        // 以下、ゲームロジックとグローバル関数への割り当て
+        // **********************************************
+
         const TIME_LIMIT = 60; 
         const CORRECT_SCORE = 100; 
         const WRONG_PENALTY = 50; 
@@ -173,10 +338,9 @@
         let intervalId = null;
         let currentQuestionIndex = 0;
         let currentGenre = ''; 
-
-        // CSV形式を模した問題データ
-        // 形式: 問題文, 正解の語句, 選択肢 (タイピング対象), ジャンル
+        
         const questions = [
+            // 形式: 問題文, 正解の語句, 選択肢 (タイピング対象), ジャンル
             // --- テクノロジ系 ---
             ["インターネット上でクライアントからの要求に応じてサービスを提供するプログラムやコンピュータのこと。", "サーバ", "A: クライアント / B: サーバ / C: ターミナル", "テクノロジ系"],
             ["Webページを閲覧するためのソフトウェア。データの要求と表示を行う。", "ウェブブラウザ", "A: Webサーバ / B: Webブラウザ / C: HTML", "テクノロジ系"],
@@ -202,7 +366,6 @@
         let availableQuestions = []; 
 
         // --- UI要素の取得 ---
-        // DOMContentLoaded後に確実に取得されるよう、関数内で定義するか、初期化時に取得する
         const scoreElement = document.getElementById('score');
         const timerElement = document.getElementById('timer');
         const timerPanel = document.getElementById('timer-panel');
@@ -218,165 +381,10 @@
         const genreDisplay = document.getElementById('genre-display');
         const genreSelectionScreen = document.getElementById('genre-selection-screen');
 
-
-        // Firebaseサービスの初期化と認証
-        function initializeFirebase() {
-            try {
-                if (Object.keys(firebaseConfig).length === 0) {
-                    console.error("Firebase Config is missing. Cannot initialize database features.");
-                    window.isAuthReady = true;
-                    document.getElementById('user-id-display').textContent = 'DB_ERROR';
-                    return;
-                }
-                
-                window.firebaseApp = initializeApp(firebaseConfig);
-                window.auth = getAuth(window.firebaseApp);
-                window.db = getFirestore(window.firebaseApp);
-
-                // 認証状態の監視
-                onAuthStateChanged(window.auth, (user) => {
-                    if (user) {
-                        window.userId = user.uid;
-                        console.log("Firebase Auth Ready. User ID:", window.userId);
-                        loadHighScores(); 
-                    } else {
-                        window.userId = null;
-                        console.warn("User signed out or authentication failed.");
-                    }
-                    window.isAuthReady = true;
-                });
-
-                // 認証の試行
-                // async/awaitを外して関数を同期的に実行し、内部で非同期処理を行う
-                setPersistence(window.auth, browserSessionPersistence)
-                    .then(() => {
-                        if (initialAuthToken) {
-                            return signInWithCustomToken(window.auth, initialAuthToken);
-                        } else {
-                            return signInAnonymously(window.auth);
-                        }
-                    })
-                    .catch((error) => {
-                        console.error("Firebase Sign-in Error:", error);
-                    });
-
-            } catch (error) {
-                console.error("Firebase Initialization Error:", error);
-            }
-        }
+        // ******************** ゲームフロー制御関数 ********************
 
         /**
-         * ハイスコアをデータベースに保存する (グローバルに公開)
-         */
-        window.saveScore = async (finalScore, genre, playerName) => {
-            if (!window.db || finalScore === 0) {
-                console.log("Database not ready or score is 0. Skipping save.");
-                return;
-            }
-
-            try {
-                const scoreData = {
-                    score: finalScore,
-                    genre: genre,
-                    playerName: playerName || '名無しチャレンジャー', 
-                    userId: window.userId, 
-                    createdAt: serverTimestamp() 
-                };
-
-                const scoresCollection = collection(window.db, `artifacts/${appId}/public/data/highscores`);
-                await addDoc(scoresCollection, scoreData);
-                console.log("Score saved successfully!");
-            } catch (error) {
-                console.error("Error saving score:", error);
-            }
-        };
-
-        /**
-         * リアルタイムでランキングを読み込み、UIを更新する
-         */
-        function loadHighScores() {
-            if (!window.db) return;
-
-            try {
-                const scoresCollection = collection(window.db, `artifacts/${appId}/public/data/highscores`);
-                const q = query(scoresCollection);
-
-                onSnapshot(q, (snapshot) => {
-                    const scores = [];
-                    snapshot.forEach((doc) => {
-                        scores.push({ id: doc.id, ...doc.data() });
-                    });
-                    
-                    // スコアが高い順、タイムスタンプが新しい順にソート
-                    scores.sort((a, b) => {
-                        if (b.score !== a.score) {
-                            return b.score - a.score; 
-                        }
-                        const aTime = a.createdAt?.toMillis() || 0;
-                        const bTime = b.createdAt?.toMillis() || 0;
-                        return bTime - aTime;
-                    });
-                    
-                    renderRanking(scores.slice(0, 10)); // トップ10を表示
-                });
-
-            } catch (error) {
-                console.error("Error loading high scores:", error);
-            }
-        }
-        
-        /**
-         * ランキングデータをUIにレンダリングする
-         * @param {Array} topScores - トップスコアの配列
-         */
-        function renderRanking(topScores) {
-            const rankingList = document.getElementById('ranking-list');
-            rankingList.innerHTML = '';
-
-            if (topScores.length === 0) {
-                rankingList.innerHTML = '<p class="text-center p-4 text-gray-400">まだスコアがありません。最初の挑戦者になりましょう！</p>';
-                return;
-            }
-
-            topScores.forEach((scoreData, index) => {
-                const rank = index + 1;
-                const listItem = document.createElement('div');
-                listItem.className = `rank-item flex justify-between items-center p-3 rounded-lg text-lg font-bold transition duration-150`;
-                
-                let rankBadge = `${rank}.`;
-                if (rank <= 3) {
-                    rankBadge = `⭐ ${rank}`;
-                }
-                
-                let timeStr = 'N/A';
-                if (scoreData.createdAt && scoreData.createdAt.toDate) {
-                    const date = scoreData.createdAt.toDate();
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    const hour = String(date.getHours()).padStart(2, '0');
-                    const minute = String(date.getMinutes()).padStart(2, '0');
-                    timeStr = `${year}/${month}/${day} ${hour}:${minute}`;
-                }
-
-                // ランキングに表示する名前は、保存されたplayerNameを使用
-                const displayName = scoreData.playerName || scoreData.userId?.substring(0, 6) + '...' || '名無し'; 
-
-                listItem.innerHTML = `
-                    <span class="rank-badge w-1/12 text-left">${rankBadge}</span>
-                    <span class="text-blue-400 font-mono w-2/12 text-left">${scoreData.score} pts</span>
-                    <span class="text-gray-300 w-2/12 text-left text-sm">${scoreData.genre}</span>
-                    <span class="text-gray-500 w-4/12 text-center text-xs font-normal">${timeStr}</span>
-                    <span class="text-yellow-400 w-3/12 text-right text-sm truncate" title="${displayName}">${displayName}</span>
-                `;
-                rankingList.appendChild(listItem);
-            });
-        }
-
-        // ******************** ゲームフロー制御関数 (グローバル公開) ********************
-
-        /**
-         * ゲームを初期化し、ジャンル選択画面を表示する
+         * ゲームを初期化し、ジャンル選択画面を表示する (HTMLから呼び出し可能)
          */
         window.showGenreSelection = function() {
             // 全ての画面を非表示
@@ -398,11 +406,9 @@
         }
         
         /**
-         * 選択されたジャンルの問題でゲームを開始する
-         * @param {string} selectedGenre - 選択されたジャンル名
+         * 選択されたジャンルの問題でゲームを開始する (HTMLから呼び出し可能)
          */
         window.startGenreQuiz = function(selectedGenre) {
-            // 現在のジャンルを保存
             currentGenre = selectedGenre;
 
             // UIの状態をリセット
@@ -412,7 +418,7 @@
             updateUI();
             feedbackMessage.textContent = '';
 
-            // 画面表示を切り替え (ジャンル選択画面とゲームオーバー画面を非表示)
+            // 画面表示を切り替え
             genreSelectionScreen.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
             gameArea.classList.remove('hidden');
@@ -427,7 +433,6 @@
                     .sort(() => Math.random() - 0.5);
             }
 
-            // フィルタリングされた問題がない場合はエラー表示
             if (availableQuestions.length === 0) {
                 questionTextElement.textContent = `エラー: ${selectedGenre} の問題がありません。`;
                 return;
@@ -443,10 +448,8 @@
             if (intervalId) clearInterval(intervalId);
             intervalId = setInterval(tick, 1000);
 
-            // 最初の問題を表示
             displayNextQuestion();
             
-            // Enterキーでの解答を可能にするイベントリスナー
             answerInput.addEventListener('keypress', handleKeyPress);
         }
 
@@ -484,15 +487,11 @@
             scoreTimerArea.classList.add('hidden');
             gameOverScreen.classList.remove('hidden');
             
-            // 現在のプレイヤーネームを取得
             const playerName = localStorage.getItem(PLAYER_NAME_KEY) || '名無しチャレンジャー';
 
-            // スコアを保存 (プレイヤーネームを含めて)
-            if (window.saveScore) {
-                window.saveScore(score, currentGenre, playerName);
-            }
+            // スコアを保存
+            saveScore(score, currentGenre, playerName);
 
-            // スコアが確定したため、ゲームオーバー画面のタイトルを変更
             finalScoreElement.textContent = score;
             const gameOverTitle = document.querySelector('#game-over-screen h2');
             if (score > 0) {
@@ -507,7 +506,6 @@
          */
         function displayNextQuestion() {
             if (currentQuestionIndex >= availableQuestions.length) {
-                // すべての問題を解き終わった場合も、タイマーが残っていてもゲームオーバーとする
                 timer = 0; 
                 endGame();
                 return;
@@ -515,11 +513,9 @@
 
             const q = availableQuestions[currentQuestionIndex];
             
-            // UIアニメーション
             questionTextElement.classList.remove('question-flow');
             optionsAreaElement.classList.remove('question-flow');
 
-            // 問題とヒントを表示
             questionTextElement.textContent = q[0];
             optionsAreaElement.textContent = q[2];
             genreDisplay.textContent = q[3]; 
@@ -535,7 +531,7 @@
         }
 
         /**
-         * 解答をチェックする
+         * 解答をチェックする (HTMLから呼び出し可能)
          */
         window.checkAnswer = function() {
             if (currentQuestionIndex >= availableQuestions.length || answerInput.disabled) return;
@@ -549,12 +545,10 @@
             const normalizedUser = normalizeJapanese(userAnswer);
 
             if (normalizedUser === normalizedCorrect) {
-                // 正解
                 score += CORRECT_SCORE;
                 feedbackMessage.textContent = '🎉 CORRECT! KNOWLEDGE GAINED!';
                 feedbackMessage.className = 'text-center font-bold text-xl feedback-correct';
             } else {
-                // 不正解
                 score -= WRONG_PENALTY;
                 if (score < 0) score = 0; 
                 feedbackMessage.textContent = `❌ INCORRECT! The answer was "${correctAnswer}".`;
@@ -563,7 +557,6 @@
 
             updateUI();
             
-            // 次の問題へ
             currentQuestionIndex++;
             setTimeout(displayNextQuestion, 1500); 
         }
@@ -582,12 +575,12 @@
         function handleKeyPress(e) {
             if (e.key === 'Enter') {
                 e.preventDefault(); 
-                window.checkAnswer();
+                checkAnswer();
             }
         }
 
         /**
-         * スコアをTwitter (X) で共有する (グローバルに公開)
+         * スコアをTwitter (X) で共有する (HTMLから呼び出し可能)
          */
         window.shareScore = function() {
             const finalScore = score;
@@ -596,7 +589,6 @@
             
             const text = `🏆 ${playerName}がFE QUEST ${genreText}モードでスコア${finalScore}点を獲得しました！\n\n基本情報技術者試験の知識定着に効果的なタイピングクイズに挑戦しよう！\n`;
             
-            // 公開されたURLを使用
             const url = encodeURIComponent(window.location.href); 
             const hashtags = '基本情報技術者試験,FE,IT資格,タイピング学習';
 
@@ -626,8 +618,10 @@
             return normalized;
         }
 
+        // --- プレイヤーネーム管理関数 ---
+
         /**
-         * プレイヤーネームの管理 (グローバルに公開)
+         * プレイヤーネームをLocalStorageからロードする (HTMLから呼び出し可能)
          */
         window.loadPlayerName = function() { 
             const savedName = localStorage.getItem(PLAYER_NAME_KEY);
@@ -637,15 +631,15 @@
             const defaultName = '名無しチャレンジャー';
             const nameToUse = savedName || defaultName;
             
-            // DOMが存在することを確認してから値を設定
-            if (input) input.value = nameToUse;
-            if (display) display.textContent = nameToUse;
+            input.value = nameToUse;
+            display.textContent = nameToUse;
         };
 
+        /**
+         * プレイヤーネームをLocalStorageに保存する (HTMLから呼び出し可能)
+         */
         window.savePlayerName = function() {
             const input = document.getElementById('player-name-input');
-            if (!input) return;
-
             const newName = input.value.trim();
             
             if (newName && newName.length <= 20) {
@@ -657,12 +651,11 @@
             }
         }
 
-
-        // Firebaseの初期化
+        // アプリ起動時の処理
         initializeFirebase();
-        
-        // DOMContentLoaded時にshowGenreSelectionを呼び出す
-        document.addEventListener('DOMContentLoaded', window.showGenreSelection); // window経由の呼び出しに変更
+        window.onload = function() {
+            showGenreSelection(); // 画面の初期表示
+        };
     </script>
     
     <!-- メインコンテナ -->
@@ -681,6 +674,7 @@
         </div>
 
         <!-- スコアとタイマーの表示エリア (ゲーム要素) -->
+        <!-- 初期状態は非表示 -->
         <div id="score-timer-area" class="flex justify-between text-xl font-mono hidden">
             <div class="game-panel text-blue-200 p-3 rounded-lg flex-1 mr-2 text-center">
                 SCORE: <span id="score">0</span>
@@ -690,7 +684,7 @@
             </div>
         </div>
 
-        <!-- ゲームプレイエリア (初期非表示) -->
+        <!-- ゲームプレイエリア (初期状態は非表示) -->
         <div id="game-area" class="space-y-5 hidden">
             
             <!-- 問題表示エリア -->
@@ -782,7 +776,7 @@
             </div>
         </div>
 
-        <!-- ゲームオーバー画面 -->
+        <!-- ゲームオーバー画面 (初期状態は非表示) -->
         <div id="game-over-screen" class="hidden text-center p-8 game-over-panel rounded-xl space-y-4">
             <h2 class="text-4xl font-extrabold text-red-400 game-title-font">MISSION COMPLETE!</h2>
             <p class="text-2xl text-gray-200">FINAL SCORE: <span id="final-score" class="text-red-300 text-4xl font-bold game-title-font">0</span></p>
