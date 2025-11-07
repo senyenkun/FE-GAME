@@ -53,13 +53,13 @@
         }
 
         /* 入力フィールドのスタイル */
-        #answer-input {
+        #answer-input, #player-name-input {
             background: #1a202c;
             border: 2px solid #63b3ed; /* 明るい青のボーダー */
             color: #e2e8f0;
             transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
         }
-        #answer-input:focus {
+        #answer-input:focus, #player-name-input:focus {
             border-color: #4a90e2; /* フォーカス時の色 */
             box-shadow: 0 0 10px rgba(74, 144, 226, 0.7); /* フォーカス時の発光 */
             outline: none; /* デフォルトのアウトラインを消す */
@@ -116,128 +116,64 @@
         .question-flow {
             animation: flow 0.5s ease-out forwards;
         }
+
+        /* ランキングボードのスタイル */
+        .ranking-panel {
+            background: #1a202c;
+            border: 1px solid #4a90e2;
+            box-shadow: 0 0 10px rgba(74, 144, 226, 0.3);
+        }
+        .rank-header {
+            background: #2d3748;
+        }
+        .rank-item:nth-child(odd) {
+            background: #1f2937;
+        }
+        .rank-item:nth-child(1) .rank-badge { color: #ffd700; } /* Gold */
+        .rank-item:nth-child(2) .rank-badge { color: #c0c0c0; } /* Silver */
+        .rank-item:nth-child(3) .rank-badge { color: #cd7f32; } /* Bronze */
+        
+        .player-info-panel {
+            background: #1a202c;
+            border: 1px solid #4a5568;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
 
-    <!-- メインコンテナ -->
-    <div id="app" class="rounded-2xl w-full max-w-lg p-8 space-y-6">
+    <!-- Firebase/ゲームロジック統合スクリプト -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, orderBy, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        <h1 class="text-4xl font-extrabold text-center text-blue-400 pb-2 game-title-font">
-            FE QUEST
-        </h1>
-        <p class="text-md text-center text-blue-200 mt-0">IT知識、タイピングでGETだぜ！</p>
+        // Firestoreのデバッグログを有効化
+        setLogLevel('Debug');
 
-
-        <!-- スコアとタイマーの表示エリア (ゲーム要素) -->
-        <!-- ゲームプレイ中のみ表示 -->
-        <div id="score-timer-area" class="flex justify-between text-xl font-mono hidden">
-            <div class="game-panel text-blue-200 p-3 rounded-lg flex-1 mr-2 text-center">
-                SCORE: <span id="score">0</span>
-            </div>
-            <div class="game-panel text-red-300 p-3 rounded-lg flex-1 ml-2 text-center" id="timer-panel">
-                TIME: <span id="timer">60</span>s
-            </div>
-        </div>
-
-        <!-- ゲームプレイエリア (初期非表示) -->
-        <div id="game-area" class="space-y-5 hidden">
-            
-            <!-- 問題表示エリア -->
-            <div class="question-display-area p-5 rounded-xl text-center space-y-2">
-                <p class="text-sm font-semibold text-blue-300 mb-1">
-                    <span class="text-yellow-300 mr-2">AREA:</span> <span id="genre-display">ジャンル</span>
-                </p>
-                <p class="text-lg font-bold text-gray-100 leading-relaxed" id="question-text">
-                    [Press START to Begin Your Quest!]
-                </p>
-            </div>
-
-            <!-- 選択肢とタイピング入力エリア -->
-            <div id="quiz-content" class="space-y-4">
-                
-                <!-- 選択肢 (ここではタイピング形式のため、解答のヒントとして表示) -->
-                <div class="options-hint-area p-4 rounded-lg text-lg font-mono question-flow">
-                    <p class="text-sm text-gray-400 mb-2">HINT: Choose wisely!</p>
-                    <div id="options-area" class="text-gray-200">
-                        A: ファイアウォール / B: プロキシサーバ / C: ルータ
-                    </div>
-                </div>
-
-                <!-- タイピング入力フィールド -->
-                <input type="text" id="answer-input" placeholder="Type your answer here..." 
-                       class="w-full p-4 rounded-lg text-lg focus:outline-none transition duration-150" disabled>
-                
-                <!-- フィードバックメッセージ -->
-                <p id="feedback-message" class="text-center font-bold h-6 text-xl"></p>
-
-                <!-- 解答ボタン -->
-                <button id="submit-button" onclick="checkAnswer()" disabled
-                        class="game-button text-white font-bold py-3 px-4 rounded-lg w-full text-xl disabled:opacity-50">
-                    SUBMIT (Enter)
-                </button>
-            </div>
-        </div>
-        
-        <!-- ジャンル選択画面 -->
-        <div id="genre-selection-screen" class="space-y-6">
-            <h2 class="text-2xl font-extrabold text-center text-blue-300 border-b border-blue-500 pb-2">SELECT YOUR AREA</h2>
-            <div class="grid grid-cols-1 gap-4">
-                <button onclick="startGenreQuiz('テクノロジ系')" class="game-button py-4 text-xl hover:bg-blue-600">
-                    テクノロジ系 (Tech)
-                </button>
-                <button onclick="startGenreQuiz('マネジメント系')" class="game-button py-4 text-xl hover:bg-green-700" 
-                        style="background: linear-gradient(180deg, #48bb78 0%, #38a169 100%); border-bottom: 3px solid #276749;">
-                    マネジメント系 (Management)
-                </button>
-                <button onclick="startGenreQuiz('ストラテジ系')" class="game-button py-4 text-xl hover:bg-orange-600" 
-                        style="background: linear-gradient(180deg, #ed8936 0%, #dd6b20 100%); border-bottom: 3px solid #9c4221;">
-                    ストラテジ系 (Strategy)
-                </button>
-                <button onclick="startGenreQuiz('オールエリア')" class="game-button py-4 text-xl hover:bg-purple-600" 
-                        style="background: linear-gradient(180deg, #a78bfa 0%, #7c3aed 100%); border-bottom: 3px solid #5b21b6;">
-                    オールエリア (ALL AREA)
-                </button>
-            </div>
-        </div>
-
-        <!-- ゲームオーバー画面 -->
-        <div id="game-over-screen" class="hidden text-center p-8 game-over-panel rounded-xl space-y-4">
-            <h2 class="text-4xl font-extrabold text-red-400 game-title-font">MISSION COMPLETE!</h2>
-            <p class="text-2xl text-gray-200">FINAL SCORE: <span id="final-score" class="text-red-300 text-4xl font-bold game-title-font">0</span></p>
-            <p class="text-md text-gray-400">Your journey ends here... but a new quest awaits!</p>
-            
-            <button id="share-score-button" onclick="shareScore()"
-                    class="game-button py-3 px-4 rounded-lg w-full text-xl mt-4"
-                    style="background: linear-gradient(180deg, #00acee 0%, #0084b4 100%); border-bottom: 3px solid #005f7e;">
-                🏆 スコアをシェアする (X)
-            </button>
-
-            <button id="return-to-select-button" onclick="showGenreSelection()"
-                    class="game-button bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg w-full text-xl mt-4"
-                    style="background: linear-gradient(180deg, #48bb78 0%, #38a169 100%); border-bottom: 3px solid #276749;">
-                SELECT NEW AREA
-            </button>
-        </div>
-
-    </div>
-
-    <script>
-        // Firestoreを使用するためのグローバル変数の定義 (今回はモックデータを使用)
+        // グローバル変数の設定
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        
+        window.firebaseApp = null;
+        window.auth = null;
+        window.db = null;
+        window.userId = null;
+        window.isAuthReady = false;
+        
+        const PLAYER_NAME_KEY = 'fe_quest_player_name';
 
         // --- ゲーミフィケーションと問題管理の変数 ---
-        const TIME_LIMIT = 60; // 制限時間 (秒)
-        const CORRECT_SCORE = 100; // 正解時の加点
-        const WRONG_PENALTY = 50; // 不正解時の減点
+        const TIME_LIMIT = 60; 
+        const CORRECT_SCORE = 100; 
+        const WRONG_PENALTY = 50; 
 
         let score = 0;
         let timer = TIME_LIMIT;
         let intervalId = null;
         let currentQuestionIndex = 0;
-        let currentGenre = ''; // 現在プレイ中のジャンルを保持
+        let currentGenre = ''; 
 
-        
         // CSV形式を模した問題データ
         // 形式: 問題文, 正解の語句, 選択肢 (タイピング対象), ジャンル
         const questions = [
@@ -263,9 +199,10 @@
             ["自社の強みと弱み、外部環境の機会と脅威を分析し、戦略を立てる手法。", "SWOT分析", "A: バリューチェーン / B: SWOT分析 / C: PEST分析", "ストラテジ系"],
         ];
         
-        let availableQuestions = []; // 出題管理用の配列
+        let availableQuestions = []; 
 
         // --- UI要素の取得 ---
+        // DOMContentLoaded後に確実に取得されるよう、関数内で定義するか、初期化時に取得する
         const scoreElement = document.getElementById('score');
         const timerElement = document.getElementById('timer');
         const timerPanel = document.getElementById('timer-panel');
@@ -281,12 +218,167 @@
         const genreDisplay = document.getElementById('genre-display');
         const genreSelectionScreen = document.getElementById('genre-selection-screen');
 
-        // ******************** ゲームフロー制御関数 ********************
+
+        // Firebaseサービスの初期化と認証
+        function initializeFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.error("Firebase Config is missing. Cannot initialize database features.");
+                    window.isAuthReady = true;
+                    document.getElementById('user-id-display').textContent = 'DB_ERROR';
+                    return;
+                }
+                
+                window.firebaseApp = initializeApp(firebaseConfig);
+                window.auth = getAuth(window.firebaseApp);
+                window.db = getFirestore(window.firebaseApp);
+
+                // 認証状態の監視
+                onAuthStateChanged(window.auth, (user) => {
+                    if (user) {
+                        window.userId = user.uid;
+                        console.log("Firebase Auth Ready. User ID:", window.userId);
+                        loadHighScores(); 
+                    } else {
+                        window.userId = null;
+                        console.warn("User signed out or authentication failed.");
+                    }
+                    window.isAuthReady = true;
+                });
+
+                // 認証の試行
+                // async/awaitを外して関数を同期的に実行し、内部で非同期処理を行う
+                setPersistence(window.auth, browserSessionPersistence)
+                    .then(() => {
+                        if (initialAuthToken) {
+                            return signInWithCustomToken(window.auth, initialAuthToken);
+                        } else {
+                            return signInAnonymously(window.auth);
+                        }
+                    })
+                    .catch((error) => {
+                        console.error("Firebase Sign-in Error:", error);
+                    });
+
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+            }
+        }
+
+        /**
+         * ハイスコアをデータベースに保存する (グローバルに公開)
+         */
+        window.saveScore = async (finalScore, genre, playerName) => {
+            if (!window.db || finalScore === 0) {
+                console.log("Database not ready or score is 0. Skipping save.");
+                return;
+            }
+
+            try {
+                const scoreData = {
+                    score: finalScore,
+                    genre: genre,
+                    playerName: playerName || '名無しチャレンジャー', 
+                    userId: window.userId, 
+                    createdAt: serverTimestamp() 
+                };
+
+                const scoresCollection = collection(window.db, `artifacts/${appId}/public/data/highscores`);
+                await addDoc(scoresCollection, scoreData);
+                console.log("Score saved successfully!");
+            } catch (error) {
+                console.error("Error saving score:", error);
+            }
+        };
+
+        /**
+         * リアルタイムでランキングを読み込み、UIを更新する
+         */
+        function loadHighScores() {
+            if (!window.db) return;
+
+            try {
+                const scoresCollection = collection(window.db, `artifacts/${appId}/public/data/highscores`);
+                const q = query(scoresCollection);
+
+                onSnapshot(q, (snapshot) => {
+                    const scores = [];
+                    snapshot.forEach((doc) => {
+                        scores.push({ id: doc.id, ...doc.data() });
+                    });
+                    
+                    // スコアが高い順、タイムスタンプが新しい順にソート
+                    scores.sort((a, b) => {
+                        if (b.score !== a.score) {
+                            return b.score - a.score; 
+                        }
+                        const aTime = a.createdAt?.toMillis() || 0;
+                        const bTime = b.createdAt?.toMillis() || 0;
+                        return bTime - aTime;
+                    });
+                    
+                    renderRanking(scores.slice(0, 10)); // トップ10を表示
+                });
+
+            } catch (error) {
+                console.error("Error loading high scores:", error);
+            }
+        }
+        
+        /**
+         * ランキングデータをUIにレンダリングする
+         * @param {Array} topScores - トップスコアの配列
+         */
+        function renderRanking(topScores) {
+            const rankingList = document.getElementById('ranking-list');
+            rankingList.innerHTML = '';
+
+            if (topScores.length === 0) {
+                rankingList.innerHTML = '<p class="text-center p-4 text-gray-400">まだスコアがありません。最初の挑戦者になりましょう！</p>';
+                return;
+            }
+
+            topScores.forEach((scoreData, index) => {
+                const rank = index + 1;
+                const listItem = document.createElement('div');
+                listItem.className = `rank-item flex justify-between items-center p-3 rounded-lg text-lg font-bold transition duration-150`;
+                
+                let rankBadge = `${rank}.`;
+                if (rank <= 3) {
+                    rankBadge = `⭐ ${rank}`;
+                }
+                
+                let timeStr = 'N/A';
+                if (scoreData.createdAt && scoreData.createdAt.toDate) {
+                    const date = scoreData.createdAt.toDate();
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const hour = String(date.getHours()).padStart(2, '0');
+                    const minute = String(date.getMinutes()).padStart(2, '0');
+                    timeStr = `${year}/${month}/${day} ${hour}:${minute}`;
+                }
+
+                // ランキングに表示する名前は、保存されたplayerNameを使用
+                const displayName = scoreData.playerName || scoreData.userId?.substring(0, 6) + '...' || '名無し'; 
+
+                listItem.innerHTML = `
+                    <span class="rank-badge w-1/12 text-left">${rankBadge}</span>
+                    <span class="text-blue-400 font-mono w-2/12 text-left">${scoreData.score} pts</span>
+                    <span class="text-gray-300 w-2/12 text-left text-sm">${scoreData.genre}</span>
+                    <span class="text-gray-500 w-4/12 text-center text-xs font-normal">${timeStr}</span>
+                    <span class="text-yellow-400 w-3/12 text-right text-sm truncate" title="${displayName}">${displayName}</span>
+                `;
+                rankingList.appendChild(listItem);
+            });
+        }
+
+        // ******************** ゲームフロー制御関数 (グローバル公開) ********************
 
         /**
          * ゲームを初期化し、ジャンル選択画面を表示する
          */
-        function showGenreSelection() {
+        window.showGenreSelection = function() {
             // 全ての画面を非表示
             gameArea.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
@@ -295,6 +387,9 @@
             // ジャンル選択画面を表示
             genreSelectionScreen.classList.remove('hidden');
             
+            // プレイヤーネームを読み込み、表示を更新
+            window.loadPlayerName();
+
             // タイマーが動いていたら停止
             if (intervalId) clearInterval(intervalId);
             
@@ -304,9 +399,9 @@
         
         /**
          * 選択されたジャンルの問題でゲームを開始する
-         * @param {string} selectedGenre - 選択されたジャンル名 ('テクノロジ系', 'マネジメント系', 'ストラテジ系', 'オールエリア')
+         * @param {string} selectedGenre - 選択されたジャンル名
          */
-        function startGenreQuiz(selectedGenre) {
+        window.startGenreQuiz = function(selectedGenre) {
             // 現在のジャンルを保存
             currentGenre = selectedGenre;
 
@@ -317,7 +412,7 @@
             updateUI();
             feedbackMessage.textContent = '';
 
-            // 画面表示を切り替え
+            // 画面表示を切り替え (ジャンル選択画面とゲームオーバー画面を非表示)
             genreSelectionScreen.classList.add('hidden');
             gameOverScreen.classList.add('hidden');
             gameArea.classList.remove('hidden');
@@ -325,15 +420,12 @@
 
             // 問題をジャンルでフィルタリングし、シャッフル
             if (selectedGenre === 'オールエリア') {
-                // 全ての問題を使用
                 availableQuestions = [...questions].sort(() => Math.random() - 0.5);
             } else {
-                // 選択されたジャンルのみを使用
                 availableQuestions = questions
                     .filter(q => q[3] === selectedGenre)
                     .sort(() => Math.random() - 0.5);
             }
-
 
             // フィルタリングされた問題がない場合はエラー表示
             if (availableQuestions.length === 0) {
@@ -366,7 +458,6 @@
             timerElement.textContent = timer;
 
             if (timer <= 10) {
-                // 残り時間が少ないときにタイマーパネルを赤く強調
                 timerPanel.classList.remove('text-red-300');
                 timerPanel.classList.add('bg-red-700', 'text-white', 'animate-pulse');
             } else {
@@ -393,6 +484,14 @@
             scoreTimerArea.classList.add('hidden');
             gameOverScreen.classList.remove('hidden');
             
+            // 現在のプレイヤーネームを取得
+            const playerName = localStorage.getItem(PLAYER_NAME_KEY) || '名無しチャレンジャー';
+
+            // スコアを保存 (プレイヤーネームを含めて)
+            if (window.saveScore) {
+                window.saveScore(score, currentGenre, playerName);
+            }
+
             // スコアが確定したため、ゲームオーバー画面のタイトルを変更
             finalScoreElement.textContent = score;
             const gameOverTitle = document.querySelector('#game-over-screen h2');
@@ -408,7 +507,6 @@
          */
         function displayNextQuestion() {
             if (currentQuestionIndex >= availableQuestions.length) {
-                // 全ての問題を出し終えた場合
                 // すべての問題を解き終わった場合も、タイマーが残っていてもゲームオーバーとする
                 timer = 0; 
                 endGame();
@@ -417,7 +515,7 @@
 
             const q = availableQuestions[currentQuestionIndex];
             
-            // UIアニメーションのためにクラスをリセット
+            // UIアニメーション
             questionTextElement.classList.remove('question-flow');
             optionsAreaElement.classList.remove('question-flow');
 
@@ -426,11 +524,10 @@
             optionsAreaElement.textContent = q[2];
             genreDisplay.textContent = q[3]; 
             
-            // アニメーションを再適用
             setTimeout(() => {
                 questionTextElement.classList.add('question-flow');
                 optionsAreaElement.classList.add('question-flow');
-            }, 10); // 小さなディレイでアニメーションをリトリガー
+            }, 10); 
 
             answerInput.value = '';
             feedbackMessage.textContent = '';
@@ -440,7 +537,7 @@
         /**
          * 解答をチェックする
          */
-        function checkAnswer() {
+        window.checkAnswer = function() {
             if (currentQuestionIndex >= availableQuestions.length || answerInput.disabled) return;
 
             const q = availableQuestions[currentQuestionIndex];
@@ -459,8 +556,8 @@
             } else {
                 // 不正解
                 score -= WRONG_PENALTY;
-                if (score < 0) score = 0; // スコアがマイナスにならないようにする
-                feedbackMessage.textContent = `❌ INCORRECT! The answer was "${correctAnswer}" (${normalizedCorrect}).`;
+                if (score < 0) score = 0; 
+                feedbackMessage.textContent = `❌ INCORRECT! The answer was "${correctAnswer}".`;
                 feedbackMessage.className = 'text-center font-bold text-xl feedback-incorrect';
             }
 
@@ -468,7 +565,7 @@
             
             // 次の問題へ
             currentQuestionIndex++;
-            setTimeout(displayNextQuestion, 1500); // 1.5秒後に次の問題へ
+            setTimeout(displayNextQuestion, 1500); 
         }
         
         /**
@@ -484,34 +581,32 @@
          */
         function handleKeyPress(e) {
             if (e.key === 'Enter') {
-                e.preventDefault(); // デフォルトのフォーム送信を防ぐ
-                checkAnswer();
+                e.preventDefault(); 
+                window.checkAnswer();
             }
         }
 
         /**
-         * スコアをTwitter (X) で共有する
+         * スコアをTwitter (X) で共有する (グローバルに公開)
          */
-        function shareScore() {
+        window.shareScore = function() {
             const finalScore = score;
             const genreText = currentGenre === 'オールエリア' ? '全範囲' : currentGenre;
+            const playerName = localStorage.getItem(PLAYER_NAME_KEY) || '名無しチャレンジャー';
             
-            const text = `FE QUEST ${genreText}モードで、スコア${finalScore}点を獲得しました！\n\n基本情報技術者試験の知識定着に効果的なタイピングクイズに挑戦しよう！\n`;
+            const text = `🏆 ${playerName}がFE QUEST ${genreText}モードでスコア${finalScore}点を獲得しました！\n\n基本情報技術者試験の知識定着に効果的なタイピングクイズに挑戦しよう！\n`;
             
-            // 公開されたURLを使用するため、ここではプレースホルダーを使用。
-            // 実際に公開したら、[Image of X]の部分をアプリのURLに置き換えてください。
+            // 公開されたURLを使用
             const url = encodeURIComponent(window.location.href); 
             const hashtags = '基本情報技術者試験,FE,IT資格,タイピング学習';
 
-            // Twitter (X) のWeb Intent URLを生成
             const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${url}&hashtags=${hashtags}`;
             
             window.open(shareUrl, '_blank');
         }
         
         /**
-         * 日本語の表記揺れを吸収するための正規化処理 (研究報告書の核心機能)
-         * ... (処理内容は変更なし)
+         * 日本語の表記揺れを吸収するための正規化処理
          */
         function normalizeJapanese(str) {
             if (!str) return '';
@@ -531,8 +626,181 @@
             return normalized;
         }
 
-        // 初期UIのセットアップ - ページロード時にジャンル選択画面を表示
-        document.addEventListener('DOMContentLoaded', showGenreSelection);
+        /**
+         * プレイヤーネームの管理 (グローバルに公開)
+         */
+        window.loadPlayerName = function() { 
+            const savedName = localStorage.getItem(PLAYER_NAME_KEY);
+            const input = document.getElementById('player-name-input');
+            const display = document.getElementById('player-name-display');
+
+            const defaultName = '名無しチャレンジャー';
+            const nameToUse = savedName || defaultName;
+            
+            // DOMが存在することを確認してから値を設定
+            if (input) input.value = nameToUse;
+            if (display) display.textContent = nameToUse;
+        };
+
+        window.savePlayerName = function() {
+            const input = document.getElementById('player-name-input');
+            if (!input) return;
+
+            const newName = input.value.trim();
+            
+            if (newName && newName.length <= 20) {
+                localStorage.setItem(PLAYER_NAME_KEY, newName);
+                document.getElementById('player-name-display').textContent = newName;
+                console.log("Player name saved:", newName);
+            } else {
+                console.error("プレイヤーネームは1文字以上20文字以内で入力してください。"); 
+            }
+        }
+
+
+        // Firebaseの初期化
+        initializeFirebase();
+        
+        // DOMContentLoaded時にshowGenreSelectionを呼び出す
+        document.addEventListener('DOMContentLoaded', window.showGenreSelection); // window経由の呼び出しに変更
     </script>
+    
+    <!-- メインコンテナ -->
+    <div id="app" class="rounded-2xl w-full max-w-lg p-8 space-y-6">
+
+        <h1 class="text-4xl font-extrabold text-center text-blue-400 pb-2 game-title-font">
+            FE QUEST
+        </h1>
+        <p class="text-md text-center text-blue-200 mt-0">IT知識、タイピングでGETだぜ！</p>
+        
+        <!-- プレイヤーネーム表示エリア -->
+        <div class="player-info-panel p-3 rounded-lg text-sm text-gray-400 font-mono flex justify-between items-center">
+            <span>CHALLENGER: <span id="player-name-display" class="text-yellow-300 font-bold">名無しチャレンジャー</span></span>
+            <!-- 内部管理用IDは非表示または目立たないように -->
+            <span class="text-xs text-gray-600">ID: <span id="user-id-display">...</span></span>
+        </div>
+
+        <!-- スコアとタイマーの表示エリア (ゲーム要素) -->
+        <div id="score-timer-area" class="flex justify-between text-xl font-mono hidden">
+            <div class="game-panel text-blue-200 p-3 rounded-lg flex-1 mr-2 text-center">
+                SCORE: <span id="score">0</span>
+            </div>
+            <div class="game-panel text-red-300 p-3 rounded-lg flex-1 ml-2 text-center" id="timer-panel">
+                TIME: <span id="timer">60</span>s
+            </div>
+        </div>
+
+        <!-- ゲームプレイエリア (初期非表示) -->
+        <div id="game-area" class="space-y-5 hidden">
+            
+            <!-- 問題表示エリア -->
+            <div class="question-display-area p-5 rounded-xl text-center space-y-2">
+                <p class="text-sm font-semibold text-blue-300 mb-1">
+                    <span class="text-yellow-300 mr-2">AREA:</span> <span id="genre-display">ジャンル</span>
+                </p>
+                <p class="text-lg font-bold text-gray-100 leading-relaxed" id="question-text">
+                    [Press START to Begin Your Quest!]
+                </p>
+            </div>
+
+            <!-- 選択肢とタイピング入力エリア -->
+            <div id="quiz-content" class="space-y-4">
+                
+                <!-- 選択肢 (ヒント) -->
+                <div class="options-hint-area p-4 rounded-lg text-lg font-mono question-flow">
+                    <p class="text-sm text-gray-400 mb-2">HINT: Choose wisely!</p>
+                    <div id="options-area" class="text-gray-200">
+                        A: ファイアウォール / B: プロキシサーバ / C: ルータ
+                    </div>
+                </div>
+
+                <!-- タイピング入力フィールド -->
+                <input type="text" id="answer-input" placeholder="Type your answer here..." 
+                       class="w-full p-4 rounded-lg text-lg focus:outline-none transition duration-150" disabled>
+                
+                <!-- フィードバックメッセージ -->
+                <p id="feedback-message" class="text-center font-bold h-6 text-xl"></p>
+
+                <!-- 解答ボタン -->
+                <button id="submit-button" onclick="checkAnswer()" disabled
+                        class="game-button text-white font-bold py-3 px-4 rounded-lg w-full text-xl disabled:opacity-50">
+                    SUBMIT (Enter)
+                </button>
+            </div>
+        </div>
+        
+        <!-- ジャンル選択画面 (ランキングボードも含む) -->
+        <div id="genre-selection-screen" class="space-y-6 hidden">
+            
+            <!-- プレイヤーネーム設定エリア -->
+            <div class="space-y-2 player-info-panel p-4 rounded-xl">
+                <label for="player-name-input" class="text-sm font-semibold text-yellow-300">プレイヤーネーム設定 (20文字まで)</label>
+                <div class="flex space-x-2">
+                    <input type="text" id="player-name-input" placeholder="あなたの挑戦者名を入力" maxlength="20"
+                           class="w-full p-2 rounded-lg text-sm focus:outline-none">
+                    <!-- 保存ボタンはタイピングのEnterキーと競合しないよう、別途クリックで実行 -->
+                    <button onclick="savePlayerName()" class="game-button py-2 px-4 rounded-lg text-sm whitespace-nowrap">
+                        SAVE
+                    </button>
+                </div>
+            </div>
+
+            <h2 class="text-2xl font-extrabold text-center text-blue-300 border-b border-blue-500 pb-2">SELECT YOUR AREA</h2>
+            <div class="grid grid-cols-1 gap-4">
+                <button onclick="startGenreQuiz('テクノロジ系')" class="game-button py-4 text-xl hover:bg-blue-600">
+                    テクノロジ系 (Tech)
+                </button>
+                <button onclick="startGenreQuiz('マネジメント系')" class="game-button py-4 text-xl hover:bg-green-700" 
+                        style="background: linear-gradient(180deg, #48bb78 0%, #38a169 100%); border-bottom: 3px solid #276749;">
+                    マネジメント系 (Management)
+                </button>
+                <button onclick="startGenreQuiz('ストラテジ系')" class="game-button py-4 text-xl hover:bg-orange-600" 
+                        style="background: linear-gradient(180deg, #ed8936 0%, #dd6b20 100%); border-bottom: 3px solid #9c4221;">
+                    ストラテジ系 (Strategy)
+                </button>
+                <button onclick="startGenreQuiz('オールエリア')" class="game-button py-4 text-xl hover:bg-purple-600" 
+                        style="background: linear-gradient(180deg, #a78bfa 0%, #7c3aed 100%); border-bottom: 3px solid #5b21b6;">
+                    オールエリア (ALL AREA)
+                </button>
+            </div>
+
+            <!-- ランキングボード -->
+            <div class="ranking-panel rounded-xl mt-8">
+                <h3 class="rank-header text-xl font-extrabold text-yellow-300 text-center py-3 rounded-t-xl">
+                    🏆 HIGH SCORE QUEST RANKING 🏆
+                </h3>
+                <div class="flex justify-between font-mono text-sm text-gray-400 p-2 border-b border-gray-700">
+                    <span class="w-1/12 text-left">RANK</span>
+                    <span class="w-2/12 text-left">SCORE</span>
+                    <span class="w-2/12 text-left">AREA</span>
+                    <span class="w-4/12 text-center">TIME</span>
+                    <span class="w-3/12 text-right">PLAYER</span>
+                </div>
+                <div id="ranking-list" class="space-y-1 p-2">
+                    <p class="text-center p-4 text-gray-400">Loading Scores...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ゲームオーバー画面 -->
+        <div id="game-over-screen" class="hidden text-center p-8 game-over-panel rounded-xl space-y-4">
+            <h2 class="text-4xl font-extrabold text-red-400 game-title-font">MISSION COMPLETE!</h2>
+            <p class="text-2xl text-gray-200">FINAL SCORE: <span id="final-score" class="text-red-300 text-4xl font-bold game-title-font">0</span></p>
+            <p class="text-md text-gray-400">Score has been recorded to the global ranking!</p>
+            
+            <button id="share-score-button" onclick="shareScore()"
+                    class="game-button py-3 px-4 rounded-lg w-full text-xl mt-4"
+                    style="background: linear-gradient(180deg, #00acee 0%, #0084b4 100%); border-bottom: 3px solid #005f7e;">
+                🏆 スコアをシェアする (X)
+            </button>
+
+            <button id="return-to-select-button" onclick="showGenreSelection()"
+                    class="game-button bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg w-full text-xl mt-4"
+                    style="background: linear-gradient(180deg, #48bb78 0%, #38a169 100%); border-bottom: 3px solid #276749;">
+                SELECT NEW AREA
+            </button>
+        </div>
+
+    </div>
 </body>
 </html>
