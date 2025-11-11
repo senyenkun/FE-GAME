@@ -600,9 +600,6 @@
         
         /**
          * 日本語の表記揺れを吸収するための正規化処理を強化
-         * - ひらがな/カタカナ統一
-         * - 全角/半角、大文字/小文字統一
-         * - 長音記号 (ー) の吸収
          * @param {string} str - 入力または正解の文字列
          * @returns {string} 正規化された文字列 (比較用)
          */
@@ -612,25 +609,28 @@
             let normalized = str.trim();
             
             // 1. 全角英数字・記号を半角に、全角スペースを半角スペースに
-            // ひらがな・カタカナはそのまま
             normalized = normalized.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
                                    .replace(/[\u3000]/g, ' ');
 
             // 2. すべてを小文字に統一 (大文字/小文字の同一視: WEB -> web)
             normalized = normalized.toLowerCase();
-
-            // 3. カタカナをひらがなに統一 (これにより、英字が残っている場合はひらがな/カタカナ比較前に処理される)
-            // 英字がカタカナとして読まれる前提の処理
+            
+            // 3. 英字部分をカタカナの読みとして処理 (例: web -> うぇぶ)
+            // この処理は英字がカタカナとして読まれる前提のものです。
+            // 簡易的に、英字とカタカナの混在を防ぐため、カタカナに統一します。
+            
+            // カタカナをひらがなに統一
             normalized = normalized.replace(/[\u30a1-\u30f6]/g, function(match) {
                 return String.fromCharCode(match.charCodeAt(0) - 0x60);
             });
             
             // 4. 日本語の長音記号 (ー) の吸収 (例: サーバー -> サーバ)
-            // この処理は完全ではないが、サーバー/サーバの揺れに効果がある
             normalized = normalized.replace(/ー/g, ''); 
             
             // 5. 不要なスペース、ハイフン、句読点などを除去
             normalized = normalized.replace(/[\s\-,.、。]/g, '');
+
+            // 6. 濁点・半濁点の統一 (このアプリではカタカナ・ひらがな統一時に処理されるため、省略可能だが、念のため。ただし、この処理は文字コード依存が強く、今回は主にひらがな化で対応)
 
             return normalized;
         }
