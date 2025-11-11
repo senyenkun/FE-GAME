@@ -623,22 +623,13 @@
             });
             
             // 3. ローマ字変換ロジック (簡易的なもの)
-            // このマップは、直接的なタイピングの読み（ローマ字）に変換するためのもの
-            const kanaToRoman = {
-                // 基本
-                'あ': 'a', 'い': 'i', 'う': 'u', 'え': 'e', 'お': 'o',
-                'か': 'ka', 'き': 'ki', 'く': 'ku', 'け': 'ke', 'こ': 'ko',
-                // 長音（ー）は除去されるため、このマップでは不要
-                // 小さい「っ」は「tsu」に、その他の拗音は「yu」などに変換されるべきだが、ここでは単純な変換を行う
-
-                // 4. 英字と日本語の複合的な揺れを吸収するための置換
-                // 例: "web browser" -> "uebuburauza"
-                'ウェブブラウザ': 'uebuburauza',
-                'サーバ': 'saaba',
-                'サーバー': 'saaba',
-                'ファイアウォール': 'faiawooru',
-                'キャッシュメモリ': 'kyasshumemori',
-                'アルゴリズム': 'arugorizumu',
+            
+            // 複合的な揺れを吸収するための辞書 (ひらがな表記→ローマ字表記)
+            const romanMap = {
+                'うぇぶぶらうざ': 'uebuburauza', // ウェブブラウザ
+                'きゃっしゅめもり': 'kyasshumemori', // キャッシュメモリ
+                'ふぁいあうぉーる': 'faiawooru', // ファイアウォール
+                'あるごりずむ': 'arugorizumu', // アルゴリズム
                 'きみつせい': 'kimitusei', // 機密性
                 'ひょうてきがたこうげき': 'hyoutekigatakoougeki', // 標的型攻撃
 
@@ -647,26 +638,25 @@
                 'ぷろじぇくとまねじめんと': 'purozyekutomanemezimento', // プロジェクトマネジメント
                 'ようけんていぎ': 'youkenteigi', // 要件定義
 
-                'しーあいおー': 'cio', // CIO (略語はそのまま)
                 'ばりゅーちぇーん': 'baryuutyeein', // バリューチェーン
-                'いーあーるぴー': 'erp', // ERP
                 'すうぉっとぶんせき': 'suuottomunseki' // SWOT分析
             };
-
-            // まず、日本語（ひらがな）に含まれる英字以外の文字を削除
-            let onlyKanaOrRoman = normalized.replace(/[^ぁ-んァ-ヶa-z0-9]/g, '');
-
-            // 5. ローマ字への固定置換を実行
-            const sortedKeys = Object.keys(kanaToRoman).sort((a, b) => b.length - a.length);
+            
+            // 4. 特定の複合語（日本語）のローマ字置換を実行 (キーが長い順に置換することで、より正確に処理)
+            const sortedKeys = Object.keys(romanMap).sort((a, b) => b.length - a.length);
             for (const key of sortedKeys) {
                 // ユーザーが入力した日本語部分（ひらがな化済み）を対応するローマ字に置換
-                if (onlyKanaOrRoman.includes(key)) {
-                    onlyKanaOrRoman = onlyKanaOrRoman.replace(new RegExp(key, 'g'), kanaToRoman[key]);
+                if (normalized.includes(key)) {
+                    normalized = normalized.replace(new RegExp(key, 'g'), romanMap[key]);
                 }
             }
+            
+            // 5. 英字略語の対応 (CIO, ERP) - 英字は既に小文字になっているため、そのまま残す
+            
+            // 6. 最終的にアルファベット（ローマ字）と数字だけが残るように不要な文字を削除
+            normalized = normalized.replace(/[^a-z0-9]/g, '');
 
-            // 6. 最終的に英字と数字だけが残る
-            return onlyKanaOrRoman;
+            return normalized;
         }
 
 
