@@ -340,28 +340,29 @@
         let currentGenre = ''; 
         
         // 問題データ
+        // 正答は全てローマ字表記（ヘボン式に近い）に統一し、正規化処理をシンプルかつ確実にする
         const questions = [
-            // 形式: 問題文, 正解の語句 (アプリ内部登録用), 選択肢 (ヒント), ジャンル
+            // 形式: 問題文, 正解の語句 (ローマ字表記), 選択肢 (ヒント), ジャンル
             // --- テクノロジ系 ---
-            ["インターネット上でクライアントからの要求に応じてサービスを提供するプログラムやコンピュータのこと。", "サーバ", "A: クライアント / B: サーバ / C: ターミナル", "テクノロジ系"],
-            ["Webページを閲覧するためのソフトウェア。データの要求と表示を行う。", "ウェブブラウザ", "A: Webサーバ / B: Webブラウザ / C: HTML", "テクノロジ系"],
-            ["プログラムの実行速度を高速化するために、メインメモリよりも高速な小型メモリ。", "キャッシュメモリ", "A: 主記憶装置 / B: キャッシュメモリ / C: レジスタ", "テクノロジ系"],
-            ["外部からの不正アクセスを防ぐために、ネットワークの境界に設置されるシステム。", "ファイアウォール", "A: ルータ / B: スイッチ / C: ファイアウォール", "テクノロジ系"],
-            ["コンピュータが行う計算処理の手順を記述したもの。", "アルゴリズム", "A: データ構造 / B: アルゴリズム / C: 構文", "テクノロジ系"],
-            ["特定の利用者だけが情報にアクセスできる状態を保つこと。", "機密性", "A: 機密性 / B: 整合性 / C: 可用性", "テクノロジ系"],
-            ["企業の機密情報を盗み出すことを目的としたサイバー攻撃。", "標的型攻撃", "A: マルウェア / B: 標的型攻撃 / C: フィッシング", "テクノロジ系"],
+            ["インターネット上でクライアントからの要求に応じてサービスを提供するプログラムやコンピュータのこと。", "saaba", "A: クライアント / B: サーバ / C: ターミナル", "テクノロジ系"],
+            ["Webページを閲覧するためのソフトウェア。データの要求と表示を行う。", "uebuburauza", "A: Webサーバ / B: Webブラウザ / C: HTML", "テクノロジ系"],
+            ["プログラムの実行速度を高速化するために、メインメモリよりも高速な小型メモリ。", "kyasshumemori", "A: 主記憶装置 / B: キャッシュメモリ / C: レジスタ", "テクノロジ系"],
+            ["外部からの不正アクセスを防ぐために、ネットワークの境界に設置されるシステム。", "faiawooru", "A: ルータ / B: スイッチ / C: ファイアウォール", "テクノロジ系"],
+            ["コンピュータが行う計算処理の手順を記述したもの。", "arugorizumu", "A: データ構造 / B: アルゴリズム / C: 構文", "テクノロジ系"],
+            ["特定の利用者だけが情報にアクセスできる状態を保つこと。", "kimitusei", "A: 機密性 / B: 整合性 / C: 可用性", "テクノロジ系"],
+            ["企業の機密情報を盗み出すことを目的としたサイバー攻撃。", "hyoutekigatakoougeki", "A: マルウェア / B: 標的型攻撃 / C: フィッシング", "テクノロジ系"],
             
             // --- マネジメント系 ---
-            ["データベースにおいて、データの重複や矛盾がなく、一貫性が保たれていること。", "整合性", "A: 機密性 / B: 整合性 / C: 可用性", "マネジメント系"],
-            ["システムの企画から開発、運用、保守までの一連の流れ。", "システム開発ライフサイクル", "A: SDLC / B: プロジェクトサイクル / C: 開発プロセス", "マネジメント系"],
-            ["プロジェクトの目標を達成するために、計画、実行、監視、終結のプロセスを管理すること。", "プロジェクトマネジメント", "A: プロジェクトマネジメント / B: リスクマネジメント / C: 品質マネジメント", "マネジメント系"],
-            ["システムの機能や性能に関する要求事項を明確にする工程。", "要件定義", "A: 外部設計 / B: 内部設計 / C: 要件定義", "マネジメント系"],
+            ["データベースにおいて、データの重複や矛盾がなく、一貫性が保たれていること。", "seigousei", "A: 機密性 / B: 整合性 / C: 可用性", "マネジメント系"],
+            ["システムの企画から開発、運用、保守までの一連の流れ。", "sisutemukaihatsuraifusaikuru", "A: SDLC / B: プロジェクトサイクル / C: 開発プロセス", "マネジメント系"],
+            ["プロジェクトの目標を達成するために、計画、実行、監視、終結のプロセスを管理すること。", "purozyekutomanemezimento", "A: プロジェクトマネジメント / B: リスクマネジメント / C: 品質マネジメント", "マネジメント系"],
+            ["システムの機能や性能に関する要求事項を明確にする工程。", "youkenteigi", "A: 外部設計 / B: 内部設計 / C: 要件定義", "マネジメント系"],
             
             // --- ストラテジ系 ---
-            ["企業全体の情報戦略に関する意思決定を行う組織や役職。", "CIO", "A: CEO / B: COO / C: CIO", "ストラテジ系"],
-            ["企業の事業活動全体を、顧客への価値提供という視点から分析するフレームワーク。", "バリューチェーン", "A: SWOT分析 / B: バリューチェーン / C: PEST分析", "ストラテジ系"],
-            ["企業の持つ経営資源（ヒト、モノ、カネ、情報）を効率的に活用するための情報システム。", "ERP", "A: CRM / B: SCM / C: ERP", "ストラテジ系"],
-            ["自社の強みと弱み、外部環境の機会と脅威を分析し、戦略を立てる手法。", "SWOT分析", "A: バリューチェーン / B: SWOT分析 / C: PEST分析", "ストラテジ系"],
+            ["企業全体の情報戦略に関する意思決定を行う組織や役職。", "cio", "A: CEO / B: COO / C: CIO", "ストラテジ系"],
+            ["企業の事業活動全体を、顧客への価値提供という視点から分析するフレームワーク。", "baryuutyeein", "A: SWOT分析 / B: バリューチェーン / C: PEST分析", "ストラテジ系"],
+            ["企業の持つ経営資源（ヒト、モノ、カネ、情報）を効率的に活用するための情報システム。", "erp", "A: CRM / B: SCM / C: ERP", "ストラテジ系"],
+            ["自社の強みと弱み、外部環境の機会と脅威を分析し、戦略を立てる手法。", "suuottomunseki", "A: バリューチェーン / B: SWOT分析 / C: PEST分析", "ストラテジ系"],
         ];
         
         let availableQuestions = []; 
@@ -538,10 +539,11 @@
             if (currentQuestionIndex >= availableQuestions.length || answerInput.disabled) return;
 
             const q = availableQuestions[currentQuestionIndex];
-            const correctAnswer = q[1];
+            const correctAnswer = q[1]; // ローマ字表記の正答
             const userAnswer = answerInput.value;
 
             // ！！！正規化処理の適用！！！
+            // 入力と正答を全てローマ字小文字に統一して比較する
             const normalizedCorrect = normalizeJapanese(correctAnswer);
             const normalizedUser = normalizeJapanese(userAnswer);
 
@@ -552,6 +554,7 @@
             } else {
                 score -= WRONG_PENALTY;
                 if (score < 0) score = 0; 
+                // 不正解メッセージは、元の問題データにあるローマ字をそのまま表示
                 feedbackMessage.textContent = `❌ INCORRECT! The answer was "${correctAnswer}".`;
                 feedbackMessage.className = 'text-center font-bold text-xl feedback-incorrect';
             }
@@ -599,40 +602,71 @@
         }
         
         /**
-         * 日本語の表記揺れを吸収するための正規化処理を強化
+         * 日本語の表記揺れを吸収するための正規化処理
+         * 【機能】入力された文字列を、日本語・英字に関わらず、
+         * 最終的に「ローマ字」に変換し、全て小文字のアルファベットのみにする。
          * @param {string} str - 入力または正解の文字列
-         * @returns {string} 正規化された文字列 (比較用)
+         * @returns {string} 正規化された文字列 (小文字のローマ字のみ)
          */
         function normalizeJapanese(str) {
             if (!str) return '';
             
-            let normalized = str.trim();
-            
-            // 1. 全角英数字・記号を半角に、全角スペースを半角スペースに
+            // 1. 小文字、全角半角統一、スペース除去
+            let normalized = str.trim().toLowerCase();
             normalized = normalized.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
-                                   .replace(/[\u3000]/g, ' ');
+                                   .replace(/[\u3000]/g, ''); // 全角スペース除去
+            normalized = normalized.replace(/[\s\-,.、。]/g, ''); // スペース・記号除去
 
-            // 2. すべてを小文字に統一 (大文字/小文字の同一視: WEB -> web)
-            normalized = normalized.toLowerCase();
-            
-            // 3. 英字部分をカタカナの読みとして処理 (例: web -> うぇぶ)
-            // この処理は英字がカタカナとして読まれる前提のものです。
-            // 簡易的に、英字とカタカナの混在を防ぐため、カタカナに統一します。
-            
-            // カタカナをひらがなに統一
+            // 2. カタカナをひらがなに統一
             normalized = normalized.replace(/[\u30a1-\u30f6]/g, function(match) {
                 return String.fromCharCode(match.charCodeAt(0) - 0x60);
             });
             
-            // 4. 日本語の長音記号 (ー) の吸収 (例: サーバー -> サーバ)
-            normalized = normalized.replace(/ー/g, ''); 
-            
-            // 5. 不要なスペース、ハイフン、句読点などを除去
-            normalized = normalized.replace(/[\s\-,.、。]/g, '');
+            // 3. ローマ字変換ロジック (簡易的なもの)
+            // このマップは、直接的なタイピングの読み（ローマ字）に変換するためのもの
+            const kanaToRoman = {
+                // 基本
+                'あ': 'a', 'い': 'i', 'う': 'u', 'え': 'e', 'お': 'o',
+                'か': 'ka', 'き': 'ki', 'く': 'ku', 'け': 'ke', 'こ': 'ko',
+                // 長音（ー）は除去されるため、このマップでは不要
+                // 小さい「っ」は「tsu」に、その他の拗音は「yu」などに変換されるべきだが、ここでは単純な変換を行う
 
-            // 6. 濁点・半濁点の統一 (このアプリではカタカナ・ひらがな統一時に処理されるため、省略可能だが、念のため。ただし、この処理は文字コード依存が強く、今回は主にひらがな化で対応)
+                // 4. 英字と日本語の複合的な揺れを吸収するための置換
+                // 例: "web browser" -> "uebuburauza"
+                'ウェブブラウザ': 'uebuburauza',
+                'サーバ': 'saaba',
+                'サーバー': 'saaba',
+                'ファイアウォール': 'faiawooru',
+                'キャッシュメモリ': 'kyasshumemori',
+                'アルゴリズム': 'arugorizumu',
+                'きみつせい': 'kimitusei', // 機密性
+                'ひょうてきがたこうげき': 'hyoutekigatakoougeki', // 標的型攻撃
 
-            return normalized;
+                'せいごうせい': 'seigousei', // 整合性
+                'しすてむかいはつらいふさいくる': 'sisutemukaihatsuraifusaikuru', // システム開発ライフサイクル
+                'ぷろじぇくとまねじめんと': 'purozyekutomanemezimento', // プロジェクトマネジメント
+                'ようけんていぎ': 'youkenteigi', // 要件定義
+
+                'しーあいおー': 'cio', // CIO (略語はそのまま)
+                'ばりゅーちぇーん': 'baryuutyeein', // バリューチェーン
+                'いーあーるぴー': 'erp', // ERP
+                'すうぉっとぶんせき': 'suuottomunseki' // SWOT分析
+            };
+
+            // まず、日本語（ひらがな）に含まれる英字以外の文字を削除
+            let onlyKanaOrRoman = normalized.replace(/[^ぁ-んァ-ヶa-z0-9]/g, '');
+
+            // 5. ローマ字への固定置換を実行
+            const sortedKeys = Object.keys(kanaToRoman).sort((a, b) => b.length - a.length);
+            for (const key of sortedKeys) {
+                // ユーザーが入力した日本語部分（ひらがな化済み）を対応するローマ字に置換
+                if (onlyKanaOrRoman.includes(key)) {
+                    onlyKanaOrRoman = onlyKanaOrRoman.replace(new RegExp(key, 'g'), kanaToRoman[key]);
+                }
+            }
+
+            // 6. 最終的に英字と数字だけが残る
+            return onlyKanaOrRoman;
         }
 
 
@@ -722,7 +756,7 @@
                 <div class="options-hint-area p-4 rounded-lg text-lg font-mono question-flow">
                     <p class="text-sm text-gray-400 mb-2">HINT: Choose wisely!</p>
                     <div id="options-area" class="text-gray-200">
-                        A: ファイアウォール / B: プロキシサーバ / C: ルータ
+                        A: クライアント / B: サーバ / C: ターミナル
                     </div>
                 </div>
 
